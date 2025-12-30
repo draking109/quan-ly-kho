@@ -6,14 +6,13 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// --- CẤU HÌNH ---
+// --- HỆ THỐNG VÀ CẤU HÌNH ---
 const supabaseUrl = 'https://orjswsnioitwlvtukpjy.supabase.co';
 const supabaseKey = 'sb_publishable_NKItGLk_9mXFVrRHSQKOKw_L-ulvjUP';
 const supabase = createClient(supabaseUrl, supabaseKey);
 const STORE_ID = "kho_chinh_pro_001"; 
 
 const RANKS = ["Thiếu úy", "Trung úy", "Thượng úy", "Đại úy", "Thiếu tá", "Trung tá", "Thượng tá", "Đại tá"];
-const ROLES = ['Người lập', 'Người giao/nhận', 'Thủ kho', 'Trưởng ban', 'Chủ nhiệm'];
 const USER_ROLES = [
   { val: 'admin', label: 'Quản trị (Toàn quyền)' },
   { val: 'thukho', label: 'Thủ kho (Điều chỉnh số lượng)' },
@@ -21,7 +20,7 @@ const USER_ROLES = [
   { val: 'view', label: 'Thành phần khác (Chỉ xem)' }
 ];
 
-// Hàm xuất Excel XML (Hỗ trợ tốt nhất cho Excel)
+// Hàm xuất Excel
 const exportToExcel = (fileName, sheetName, headers, rows) => {
   let xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">`;
   xml += `<Worksheet ss:Name="${sheetName}"><Table>`;
@@ -104,7 +103,7 @@ export default function App() {
         <form onSubmit={e => { e.preventDefault(); const u = data.users.find(x => x.username === loginForm.username && x.password === loginForm.password); if (u) { setCurrentUser(u); addSystemLog('Đăng nhập'); } else alert('Sai tài khoản!'); }} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
           <div className="text-center mb-6"><ShieldCheck className="text-blue-600 mx-auto mb-2" size={48} /><h1 className="text-2xl font-black uppercase italic">Warehouse Pro</h1></div>
           <input className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none" placeholder="Tên đăng nhập" onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} />
-          <input type="password" element className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none" placeholder="Mật khẩu" onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} />
+          <input type="password" className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none" placeholder="Mật khẩu" onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} />
           <button className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold uppercase hover:bg-blue-600 transition-colors">Đăng nhập</button>
         </form>
       </div>
@@ -114,7 +113,7 @@ export default function App() {
   const canAccess = (tab) => {
     const r = currentUser.role;
     if (r === 'admin') return true;
-    if (r === 'thukho') return ['dashboard', 'products', 'audit'].includes(tab);
+    if (r === 'thukho') return ['dashboard', 'products', 'audit', 'staff'].includes(tab);
     if (r === 'coquan') return ['dashboard', 'products', 'in', 'out', 'history'].includes(tab);
     if (r === 'view') return ['dashboard', 'products'].includes(tab);
     return false;
@@ -127,11 +126,11 @@ export default function App() {
         <nav className="space-y-1 flex-1 text-xs font-bold uppercase">
           {canAccess('dashboard') && <NavBtn active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={LayoutDashboard} label="Báo cáo" />}
           {canAccess('products') && <NavBtn active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={List} label="Hàng hóa" />}
-          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest">GIAO DỊCH</div>
+          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase">Giao dịch</div>
           {canAccess('in') && <NavBtn active={activeTab === 'in'} onClick={() => setActiveTab('in')} icon={ArrowDownCircle} label="Nhập kho" />}
           {canAccess('out') && <NavBtn active={activeTab === 'out'} onClick={() => setActiveTab('out')} icon={ArrowUpCircle} label="Xuất kho" />}
           {canAccess('history') && <NavBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={History} label="Lịch sử" />}
-          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest">HỆ THỐNG</div>
+          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase">Hệ thống</div>
           {canAccess('staff') && <NavBtn active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} icon={UserCheck} label="Cán bộ ký" />}
           {canAccess('audit') && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={ClipboardCheck} label="Kiểm kê" />}
           {currentUser.role === 'admin' && <NavBtn active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={Users} label="Tài khoản" />}
@@ -144,9 +143,9 @@ export default function App() {
         {activeTab === 'products' && <Products data={data} setData={setData} log={addSystemLog} user={currentUser} />}
         {activeTab === 'in' && <Transaction type="in" data={data} setData={setData} user={currentUser} log={addSystemLog} />}
         {activeTab === 'out' && <Transaction type="out" data={data} setData={setData} user={currentUser} log={addSystemLog} />}
-        {activeTab === 'history' && <HistoryTable data={data} setData={setData} onOpenDetail={setSelectedDoc} log={addSystemLog} user={currentUser} />}
-        {activeTab === 'staff' && <StaffManagement data={data} setData={setData} log={addSystemLog} />}
-        {activeTab === 'audit' && <AuditManagement data={data} setData={setData} log={addSystemLog} />}
+        {activeTab === 'history' && <HistoryTable data={data} onOpenDetail={setSelectedDoc} />}
+        {activeTab === 'staff' && <StaffManagement data={data} setData={setData} />}
+        {activeTab === 'audit' && <AuditManagement data={data} />}
         {activeTab === 'users' && <UserManagement data={data} setData={setData} log={addSystemLog} />}
       </main>
 
@@ -160,8 +159,10 @@ export default function App() {
                   exportToExcel(`Phieu_${selectedDoc.code}`, "ChiTiet", headers, rows);
               }} className="bg-emerald-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg"><FileSpreadsheet size={18}/> EXCEL</button>
               <button onClick={() => { 
-                const listKey = selectedDoc.type === 'Nhập' ? 'receipts' : 'issues';
-                setData(prev => ({...prev, [listKey]: (prev[listKey] || []).map(d => d.id === selectedDoc.id ? {...d, isLocked: true} : d)}));
+                setData(prev => ({
+                  ...prev, 
+                  [selectedDoc.type === 'Nhập' ? 'receipts' : 'issues']: prev[selectedDoc.type === 'Nhập' ? 'receipts' : 'issues'].map(d => d.id === selectedDoc.id ? {...d, isLocked: true} : d)
+                }));
                 window.print(); 
               }} className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg hover:bg-blue-700"><Printer size={18}/> IN & KHÓA</button>
               <button onClick={() => setSelectedDoc(null)} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200"><X/></button>
@@ -173,6 +174,8 @@ export default function App() {
     </div>
   );
 }
+
+// --- COMPONENTS CHI TIẾT ---
 
 const NavBtn = ({ active, icon: Icon, label, onClick }) => (
   <button onClick={onClick} className={`flex items-center gap-3 w-full p-3 rounded-xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 hover:text-slate-200'}`}>
@@ -186,121 +189,157 @@ const Dashboard = ({ data }) => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-black uppercase italic">Tổng quan kho tàng</h2>
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4"><Package size={30} className="text-blue-500"/><div><p className="text-xs text-slate-400 font-bold uppercase">Chủng loại</p><h3 className="text-2xl font-black">{activeProducts.length}</h3></div></div>
-        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4"><DollarSign size={30} className="text-emerald-500"/><div><p className="text-xs text-slate-400 font-bold uppercase">Tổng giá trị</p><h3 className="text-2xl font-black">{totalValue.toLocaleString()}đ</h3></div></div>
+      <div className="grid grid-cols-2 gap-6 font-bold uppercase">
+        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4 border-l-4 border-l-blue-500"><Package size={30} className="text-blue-500"/><div><p className="text-xs text-slate-400">Chủng loại</p><h3 className="text-2xl font-black">{activeProducts.length}</h3></div></div>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4 border-l-4 border-l-emerald-500"><DollarSign size={30} className="text-emerald-500"/><div><p className="text-xs text-slate-400">Giá trị tồn</p><h3 className="text-2xl font-black">{totalValue.toLocaleString()}đ</h3></div></div>
       </div>
     </div>
   );
 };
 
-const Products = ({ data, setData, log, user }) => {
+const Products = ({ data, setData, user }) => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ sku: '', name: '', unit: 'Bộ', price: 0 });
-  const isAdmin = user.role === 'admin';
-  const save = (e) => { e.preventDefault(); setData(prev => ({ ...prev, products: [...(prev.products || []), { ...form, id: Date.now(), isActive: true, currentStock: 0 }] })); setShowForm(false); };
+  const isAdmin = user.role === 'admin' || user.role === 'thukho';
+  
+  const save = (e) => {
+    e.preventDefault();
+    setData(prev => ({ ...prev, products: [...(prev.products || []), { ...form, id: Date.now(), isActive: true, currentStock: 0 }] }));
+    setShowForm(false);
+    setForm({ sku: '', name: '', unit: 'Bộ', price: 0 });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase italic">Danh mục vật chất</h2><div className="flex gap-2">
-        <button onClick={() => {
-          const headers = ["Mã SKU", "Tên vật chất", "Đơn vị", "Đơn giá", "Tồn kho"];
-          const rows = (data.products || []).filter(p=>p.isActive).map(p => [p.sku, p.name, p.unit, p.price, p.currentStock]);
-          exportToExcel("DanhMuc_HangHoa", "HangHoa", headers, rows);
-        }} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg"><FileSpreadsheet size={18}/> EXCEL</button>
-        {isAdmin && <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold shadow-lg">+ THÊM MỚI</button>}
-      </div></div>
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden"><table className="w-full text-left text-xs font-bold uppercase"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Mã SKU</th><th className="px-6 py-4">Tên vật chất</th><th className="px-6 py-4 text-center">Tồn kho</th></tr></thead>
-      <tbody className="divide-y">{(data.products || []).filter(p => p.isActive).map(p => (<tr key={p.id} className="hover:bg-slate-50"><td className="px-6 py-4 font-mono text-blue-600">{p.sku}</td><td className="px-6 py-4">{p.name}</td><td className="px-6 py-4 text-center">{p.currentStock} {p.unit}</td></tr>))}</tbody></table></div>
-      {showForm && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[110]"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4"><h3 className="text-xl font-black italic border-b pb-2">THÊM VẬT CHẤT</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold" placeholder="Tên vật chất" required /><input value={form.sku} onChange={e=>setForm({...form, sku:e.target.value.toUpperCase()})} className="w-full border p-3 rounded-xl font-mono" placeholder="Mã SKU" required /><input type="number" value={form.price} onChange={e=>setForm({...form, price:Number(e.target.value)})} className="w-full border p-3 rounded-xl font-bold" placeholder="Đơn giá" required /><button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">LƯU LẠI</button></form></div>}
+      <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase italic">Danh mục vật chất</h2>
+        <div className="flex gap-2">
+          <button onClick={() => {
+            const headers = ["Mã SKU", "Tên vật chất", "Đơn vị", "Đơn giá", "Tồn kho"];
+            const rows = (data.products || []).filter(p=>p.isActive).map(p => [p.sku, p.name, p.unit, p.price, p.currentStock]);
+            exportToExcel("DanhMuc_VatChat", "HangHoa", headers, rows);
+          }} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2"><FileSpreadsheet size={18}/> EXCEL</button>
+          {isAdmin && <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold">+ THÊM MỚI</button>}
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs font-bold uppercase tracking-wider">
+        <table className="w-full text-left">
+          <thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Mã SKU</th><th className="px-6 py-4">Tên vật chất</th><th className="px-6 py-4 text-center">Tồn kho</th></tr></thead>
+          <tbody className="divide-y">{(data.products || []).filter(p => p.isActive).map(p => (<tr key={p.id} className="hover:bg-slate-50"><td className="px-6 py-4 font-mono text-blue-600">{p.sku}</td><td className="px-6 py-4">{p.name}</td><td className="px-6 py-4 text-center">{p.currentStock} {p.unit}</td></tr>))}</tbody>
+        </table>
+      </div>
+      {showForm && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl"><h3 className="text-xl font-black italic border-b pb-2 uppercase">Thêm hàng mới</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold" placeholder="Tên vật chất" required /><input value={form.sku} onChange={e=>setForm({...form, sku:e.target.value.toUpperCase()})} className="w-full border p-3 rounded-xl font-mono" placeholder="Mã SKU" required /><input type="number" value={form.price} onChange={e=>setForm({...form, price:Number(e.target.value)})} className="w-full border p-3 rounded-xl font-bold" placeholder="Đơn giá" required /><button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold uppercase">Lưu vật chất</button><button type="button" onClick={()=>setShowForm(false)} className="w-full text-slate-400 font-bold uppercase">Hủy</button></form></div>}
     </div>
   );
 };
 
-const Transaction = ({ type, data, setData, user, log }) => {
+const Transaction = ({ type, data, setData }) => {
   const [cart, setCart] = useState([]);
   const save = () => {
-    if (!cart.length) return alert("Chưa chọn hàng!");
+    if (!cart.length) return alert("Giỏ hàng trống!");
     const code = `${type==='in'?'PN':'PX'}-${Date.now().toString().slice(-4)}`;
-    const newDoc = { id: Date.now(), type: type==='in'?'Nhập':'Xuất', code, date: new Date().toLocaleString(), items: [...cart], isLocked: false, source: '', refCode: '', signers: {} };
-    setData(prev => ({ ...prev, 
+    const newDoc = { id: Date.now(), type: type==='in'?'Nhập':'Xuất', code, date: new Date().toLocaleString(), items: [...cart], isLocked: false };
+    setData(prev => ({
+      ...prev,
       products: prev.products.map(p => { const i = cart.find(x => x.id === p.id); return i ? { ...p, currentStock: type === 'in' ? p.currentStock + i.qty : p.currentStock - i.qty } : p; }),
       [type === 'in' ? 'receipts' : 'issues']: [newDoc, ...(prev[type === 'in' ? 'receipts' : 'issues'] || [])]
     }));
-    setCart([]); alert("Thành công!");
+    setCart([]); alert("Lưu phiếu thành công!");
   };
   return (
-    <div className="grid grid-cols-2 gap-8 uppercase font-bold">
-      <div className="bg-white border rounded-3xl h-[500px] overflow-y-auto divide-y shadow-sm">
-        {(data.products || []).filter(p => p.isActive).map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-blue-50 flex justify-between"><span>{p.name}</span><span className="text-blue-500">+{p.currentStock}</span></button>))}
+    <div className="grid grid-cols-2 gap-8 uppercase font-bold italic">
+      <div className="bg-white border rounded-3xl h-[600px] overflow-y-auto divide-y shadow-sm">
+        <div className="p-4 bg-slate-50 border-b sticky top-0"><Search className="inline mr-2" size={16}/> Tìm kiếm vật chất...</div>
+        {(data.products || []).filter(p => p.isActive).map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-blue-50 flex justify-between items-center"><div><p>{p.name}</p><p className="text-[10px] text-slate-400">{p.sku}</p></div><span className="text-blue-600">{p.currentStock}</span></button>))}
       </div>
-      <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl">
-        <h3 className="text-blue-400 mb-6 border-b border-slate-800 pb-4 text-xs font-black uppercase">GIỎ HÀNG {type === 'in' ? 'NHẬP' : 'XUẤT'}</h3>
-        <div className="space-y-2 mb-6 h-64 overflow-y-auto">
-          {cart.map((i, idx) => (<div key={idx} className="flex justify-between bg-slate-800 p-3 rounded-xl border border-slate-700"><span>{i.name}</span><div className="flex gap-2"><span>x{i.qty}</span><button onClick={()=>setCart(cart.filter((_,j)=>j!==idx))} className="text-red-500">X</button></div></div>))}
+      <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col">
+        <h3 className="text-blue-400 mb-6 border-b border-slate-800 pb-4 text-xs font-black uppercase">Phiếu {type==='in'?'nhập':'xuất'} kho đang lập</h3>
+        <div className="flex-1 space-y-3 overflow-y-auto">
+          {cart.map((i, idx) => (<div key={idx} className="flex justify-between bg-slate-800 p-3 rounded-xl border border-slate-700"><span>{i.name}</span><div className="flex gap-3 items-center"><input type="number" className="w-12 bg-transparent text-center border-b" value={i.qty} onChange={e=>{const n=[...cart]; n[idx].qty=Number(e.target.value); setCart(n);}} /><button onClick={()=>setCart(cart.filter((_,j)=>j!==idx))} className="text-red-500"><Trash2 size={14}/></button></div></div>))}
         </div>
-        <button onClick={save} className="w-full bg-blue-600 py-4 rounded-2xl font-black uppercase hover:bg-blue-500">XÁC NHẬN LƯU PHIẾU</button>
+        <button onClick={save} className="w-full bg-blue-600 py-4 mt-6 rounded-2xl font-black uppercase shadow-lg">Xác nhận lưu hệ thống</button>
       </div>
     </div>
   );
 };
 
 const HistoryTable = ({ data, onOpenDetail }) => {
-  const all = [...(data.receipts || []).map(r => ({...r, type: 'Nhập'})), ...(data.issues || []).map(i => ({...i, type: 'Xuất'}))].sort((a,b) => b.id - a.id);
+  const all = [...(data.receipts || []), ...(data.issues || [])].sort((a,b) => b.id - a.id);
   return (
     <div className="space-y-6 uppercase font-bold italic">
       <h2 className="text-2xl font-black">Lịch sử giao dịch</h2>
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Mã phiếu</th><th className="px-6 py-4 text-center">Trạng thái</th></tr></thead>
-      <tbody className="divide-y">{all.map(d => (<tr key={d.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onOpenDetail(d)}><td className="px-6 py-4 text-blue-600 font-mono">{d.code} - {d.type}</td><td className="px-6 py-4 text-center">{d.isLocked ? "ĐÃ KHÓA" : "CHƯA KHÓA"}</td></tr>))}</tbody></table></div>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans tracking-widest"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Mã số</th><th className="px-6 py-4">Loại</th><th className="px-6 py-4">Ngày tháng</th><th className="px-6 py-4 text-center">Khóa</th></tr></thead>
+      <tbody className="divide-y">{all.map(d => (<tr key={d.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onOpenDetail(d)}><td className="px-6 py-4 text-blue-600 font-mono">{d.code}</td><td className="px-6 py-4">{d.type}</td><td className="px-6 py-4">{d.date}</td><td className="px-6 py-4 text-center">{d.isLocked ? <Lock size={14} className="mx-auto text-red-500"/> : <X size={14} className="mx-auto text-slate-300"/>}</td></tr>))}</tbody></table></div>
+    </div>
+  );
+};
+
+const UserManagement = ({ data, setData, log }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ username: '', password: '', name: '', role: 'view' });
+  const saveUser = (e) => {
+    e.preventDefault();
+    setData(prev => ({ ...prev, users: [...(prev.users || []), { ...form, id: Date.now() }] }));
+    log(`Tạo user: ${form.username}`); setShowModal(false);
+  };
+  return (
+    <div className="space-y-6 font-bold uppercase italic">
+      <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase italic">Tài khoản truy cập</h2><button onClick={() => setShowModal(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold">+ TẠO MỚI</button></div>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs uppercase"><table className="w-full text-left font-sans font-bold"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Họ tên</th><th className="px-6 py-4">Vai trò</th><th className="px-6 py-4 text-center">Thao tác</th></tr></thead>
+      <tbody className="divide-y">{(data.users || []).map(u => (<tr key={u.id} className="hover:bg-slate-50"><td className="px-6 py-4">{u.name}</td><td className="px-6 py-4 text-blue-600">{u.role}</td><td className="px-6 py-4 text-center"><button disabled={u.username === 'admin'} onClick={() => setData(prev => ({...prev, users: prev.users.filter(x => x.id !== u.id)}))} className="text-red-400 disabled:opacity-30"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>
+      {showModal && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[110] backdrop-blur-sm"><form onSubmit={saveUser} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl font-sans"><h3 className="text-xl font-black uppercase italic border-b pb-2">Thêm tài khoản</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Họ tên" required /><input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Tên đăng nhập" required /><input type="password" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Mật khẩu" required /><select value={form.role} onChange={e=>setForm({...form, role:e.target.value})} className="w-full border p-3 rounded-xl bg-slate-50 font-bold">{USER_ROLES.map(r=><option key={r.val} value={r.val}>{r.label}</option>)}</select><button type="submit" className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold uppercase">Lưu người dùng</button></form></div>}
     </div>
   );
 };
 
 const StaffManagement = ({ data, setData }) => {
-  const [name, setName] = useState('');
+  const [form, setForm] = useState({ role: 'Thủ kho', name: '', rank: 'Đại úy' });
+  const saveStaff = () => {
+    setData(prev => ({ ...prev, staff: [...(prev.staff || []), { ...form, id: Date.now() }] }));
+    setForm({ role: 'Thủ kho', name: '', rank: 'Đại úy' });
+  };
   return (
     <div className="space-y-6 font-bold uppercase italic">
-      <h2 className="text-2xl font-black">Cán bộ ký duyệt</h2>
-      <div className="bg-white p-6 rounded-2xl border flex gap-4">
-        <input value={name} onChange={e=>setName(e.target.value)} className="border p-2 rounded-lg font-bold flex-1" placeholder="Họ tên cán bộ" />
-        <button onClick={()=>{setData(prev=>({...prev, staff:[...(prev.staff||[]), {id:Date.now(), name, role:'Thủ kho', rank:'Đại úy'}]})); setName('')}} className="bg-blue-600 text-white px-6 rounded-lg font-bold">THÊM</button>
+      <h2 className="text-2xl font-black">Nhân sự ký duyệt</h2>
+      <div className="bg-white p-6 rounded-2xl border flex gap-4 items-end font-bold text-[11px] font-sans">
+        <div className="flex-1"><label>Họ tên</label><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+        <div className="w-32"><label>Cấp bậc</label><select value={form.rank} onChange={e=>setForm({...form, rank:e.target.value})} className="w-full border p-2 rounded-lg">{RANKS.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+        <button onClick={saveStaff} className="bg-blue-600 text-white p-2.5 rounded-lg px-6">THÊM</button>
       </div>
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden font-sans"><table className="w-full text-left text-xs uppercase font-bold"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Họ và tên</th><th className="px-6 py-4">Chức danh</th></tr></thead>
-      <tbody className="divide-y">{(data.staff || []).map(s=>(<tr key={s.id} className="hover:bg-slate-50"><td className="px-6 py-4">{s.name}</td><td className="px-6 py-4">{s.role}</td></tr>))}</tbody></table></div>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs uppercase font-bold font-sans">
+        <table className="w-full text-left"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Chức danh</th><th className="px-6 py-4">Họ và tên</th><th className="px-6 py-4 text-center">Xóa</th></tr></thead>
+        <tbody className="divide-y">{(data.staff || []).map(s => (<tr key={s.id} className="hover:bg-slate-50"><td className="px-6 py-4">{s.role}</td><td className="px-6 py-4">{s.rank} {s.name}</td><td className="px-6 py-4 text-center"><button onClick={()=>setData(prev=>({...prev, staff:prev.staff.filter(x=>x.id!==s.id)}))} className="text-red-400"><Trash2 size={16}/></button></td></tr>))}</tbody></table>
+      </div>
     </div>
   );
 };
 
-const AuditManagement = ({ data, setData }) => (
-  <div className="bg-white p-8 rounded-3xl border shadow-sm text-center italic font-bold">Hệ thống kiểm kê đang được đồng bộ cho Zero line M1...</div>
-);
-
-const UserManagement = ({ data, setData }) => (
-  <div className="bg-white p-8 rounded-3xl border shadow-sm text-center italic font-bold">Quản lý người dùng nâng cao (Dành cho Admin)</div>
-);
+const AuditManagement = ({ data }) => {
+  return <div className="p-12 bg-white rounded-3xl border shadow-sm text-center font-bold italic uppercase tracking-widest text-slate-400">Hệ thống kiểm kê đồng bộ Zero line (M1)</div>;
+};
 
 const PrintTemplate = ({ doc }) => {
-  const totalAmount = (doc.items || []).reduce((sum, i) => sum + (i.qty * i.price), 0);
+  const total = (doc.items || []).reduce((s, i) => s + (i.qty * i.price), 0);
   return (
-    <div className="print-area font-serif text-black p-4 leading-tight">
-      <style>{`@media print { .no-print { display: none !important; } } .print-table th, .print-table td { border: 1px solid black; padding: 5px; } .print-table { border-collapse: collapse; width: 100%; margin-top: 15px; }`}</style>
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold uppercase">PHIẾU {doc.type} KHO VẬT CHẤT</h2>
-        <p className="text-sm">Mã số: {doc.code}</p>
+    <div className="font-serif text-black leading-tight">
+      <div className="grid grid-cols-2 text-sm mb-8">
+        <div><p className="uppercase">Quân khu 4</p><p className="font-bold uppercase underline">Sư đoàn 968</p></div>
+        <div className="text-right uppercase font-bold"><p>Mẫu số: SS14-QN10</p><p>Số: {doc.code}</p></div>
       </div>
-      <table className="print-table text-[12px] text-center">
-        <thead><tr className="font-bold"><th>TT</th><th>Tên hàng</th><th>ĐVT</th><th>Số lượng</th><th>Thành tiền</th></tr></thead>
+      <h2 className="text-center text-2xl font-bold uppercase mb-6">PHIẾU {doc.type.toUpperCase()} KHO</h2>
+      <table className="w-full border-collapse border border-black text-sm">
+        <thead><tr className="bg-slate-100"><th className="border border-black p-2">STT</th><th className="border border-black p-2 text-left">Tên hàng hóa, vật chất</th><th className="border border-black p-2">ĐVT</th><th className="border border-black p-2">Số lượng</th><th className="border border-black p-2 text-right">Đơn giá</th><th className="border border-black p-2 text-right">Thành tiền</th></tr></thead>
         <tbody>
-          {(doc.items || []).map((item, idx) => (
-            <tr key={idx}><td>{idx + 1}</td><td className="text-left">{item.name}</td><td>{item.unit}</td><td>{item.qty}</td><td className="text-right">{(item.qty * item.price).toLocaleString()}</td></tr>
+          {doc.items.map((it, idx) => (
+            <tr key={idx}><td className="border border-black p-2 text-center">{idx+1}</td><td className="border border-black p-2">{it.name}</td><td className="border border-black p-2 text-center">{it.unit}</td><td className="border border-black p-2 text-center">{it.qty}</td><td className="border border-black p-2 text-right">{it.price.toLocaleString()}</td><td className="border border-black p-2 text-right">{(it.qty*it.price).toLocaleString()}</td></tr>
           ))}
-          <tr className="font-bold"><td colSpan="4" className="text-right uppercase">Tổng cộng:</td><td className="text-right">{totalAmount.toLocaleString()}</td></tr>
+          <tr className="font-bold"><td colSpan="5" className="border border-black p-2 text-right">TỔNG CỘNG:</td><td className="border border-black p-2 text-right">{total.toLocaleString()}đ</td></tr>
         </tbody>
       </table>
-      <p className="mt-4 italic font-bold">Bằng chữ: {docSoTiengViet(totalAmount)}</p>
-      <div className="mt-10 grid grid-cols-3 text-center text-xs uppercase font-bold">
-        <div><p>Người lập</p><div className="h-12"></div><p>Nguyễn Lê Nhật Ký</p></div>
-        <div><p>Thủ kho</p><div className="h-12"></div><p>Nguyễn Thị Nga</p></div>
-        <div><p>Trưởng ban</p><div className="h-12"></div><p>Phạm Ngọc Hầu</p></div>
+      <p className="mt-4 italic font-bold">Viết bằng chữ: {docSoTiengViet(total)}</p>
+      <div className="mt-12 grid grid-cols-3 text-center text-xs uppercase font-bold gap-4">
+        <div><p>Người viết phiếu</p><div className="h-16"></div><p>Nguyễn Lê Nhật Ký</p></div>
+        <div><p>Thủ kho</p><div className="h-16"></div><p>Nguyễn Thị Nga</p></div>
+        <div><p>Trưởng ban</p><div className="h-16"></div><p>Phạm Ngọc Hầu</p></div>
       </div>
     </div>
   );
