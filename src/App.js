@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Package, LogOut, Trash2, Search, Printer, Eye,
   History, LayoutDashboard, List, ArrowDownCircle, ArrowUpCircle,
-  Edit2, Users, ShieldCheck, DollarSign, X, Lock, ClipboardCheck, Activity, UserCheck, Save, FileSpreadsheet, RefreshCw, AlertTriangle
+  Edit2, Users, ShieldCheck, DollarSign, X, Lock, ClipboardCheck, Activity, UserCheck, Save, FileSpreadsheet, RefreshCw, AlertTriangle, Wifi, WifiOff, KeyRound
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -73,49 +73,74 @@ export default function App() {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [showPwdModal, setShowPwdModal] = useState(false);
 
+  // Load Data: Ưu tiên LocalStorage (Offline) -> Supabase (Sync)
   useEffect(() => {
-    window.addEventListener('online', () => setIsOnline(true));
-    window.addEventListener('offline', () => setIsOnline(false));
-    const loadData = async () => {
-      try {
-        let { data: cloud } = await supabase.from('warehouse_data').select('content').eq('store_id', STORE_ID).maybeSingle();
-        if (cloud && cloud.content) {
-            // Đảm bảo dữ liệu cũ có đủ 2 cột tồn
-            const migrated = cloud.content.products.map(p => ({
-                ...p,
-                bookStock: p.bookStock ?? p.currentStock ?? 0,
-                physicalStock: p.physicalStock ?? p.currentStock ?? 0
-            }));
-            setData({ ...initialData, ...cloud.content, products: migrated });
-        }
-      } finally { setLoading(false); }
+    const handleStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatus);
+    window.addEventListener('offline', handleStatus);
+
+    const init = async () => {
+      // 1. Load từ LocalStorage trước để dùng ngay
+      const local = localStorage.getItem('w_manager_data');
+      if (local) setData(JSON.parse(local));
+
+      // 2. Nếu có mạng, đồng bộ từ Cloud
+      if (navigator.onLine) {
+        try {
+          let { data: cloud } = await supabase.from('warehouse_data').select('content').eq('store_id', STORE_ID).maybeSingle();
+          if (cloud && cloud.content) {
+            setData(prev => {
+                const merged = { ...prev, ...cloud.content };
+                localStorage.setItem('w_manager_data', JSON.stringify(merged));
+                return merged;
+            });
+          }
+        } catch (e) { console.error("Sync error", e); }
+      }
+      setLoading(false);
     };
-    loadData();
+    init();
   }, []);
 
+  // Auto Sync to Cloud & LocalStorage
   useEffect(() => {
-    if (!loading && isOnline) {
-      const t = setTimeout(() => supabase.from('warehouse_data').upsert({ store_id: STORE_ID, content: data }), 1000);
-      return () => clearTimeout(t);
+    if (!loading) {
+      localStorage.setItem('w_manager_data', JSON.stringify(data));
+      if (isOnline) {
+        const t = setTimeout(() => {
+          supabase.from('warehouse_data').upsert({ store_id: STORE_ID, content: data });
+        }, 2000);
+        return () => clearTimeout(t);
+      }
     }
-  }, [data, loading, isOnline]);
+  }, [data, isOnline, loading]);
 
-  const addSystemLog = (action) => {
-    const newLog = { id: Date.now(), user: currentUser?.name || 'Hệ thống', action, time: new Date().toLocaleString('vi-VN') };
-    setData(prev => ({ ...prev, logs: [newLog, ...(prev.logs || [])].slice(0, 100) }));
+  const addDetailedLog = (action, details = "") => {
+    const now = new Date();
+    const timeStr = `${now.getHours()}:${now.getMinutes()} ngày ${now.getDate()}/${now.getMonth() + 1}`;
+    const newLog = { 
+        id: Date.now(), 
+        user: currentUser?.name || 'Hệ thống', 
+        role: currentUser?.role || '',
+        action: `${timeStr} – ${currentUser?.name} – ${action} ${details}`, 
+        time: now.toLocaleString('vi-VN') 
+    };
+    setData(prev => ({ ...prev, logs: [newLog, ...(prev.logs || [])].slice(0, 200) }));
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold italic text-slate-500">Đang đồng bộ dữ liệu Zero Line...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold italic text-slate-500">Đang khởi động hệ thống M1 (Offline mode)...</div>;
 
   if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-        <form onSubmit={e => { e.preventDefault(); const u = data.users.find(x => x.username === loginForm.username && x.password === loginForm.password); if (u) { setCurrentUser(u); addSystemLog('Đăng nhập'); } else alert('Sai thông tin!'); }} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
+        <form onSubmit={e => { e.preventDefault(); const u = data.users.find(x => x.username === loginForm.username && x.password === loginForm.password); if (u) { setCurrentUser(u); addDetailedLog('Đăng nhập hệ thống'); } else alert('Sai thông tin!'); }} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
           <div className="text-center mb-6"><ShieldCheck className="text-blue-600 mx-auto mb-2" size={48} /><h1 className="text-2xl font-black uppercase italic tracking-tighter text-slate-800">Warehouse Pro</h1></div>
           <input className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Tên đăng nhập" onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} />
           <input type="password" className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mật khẩu" onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} />
           <button className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold uppercase hover:bg-blue-600 transition-all">Đăng nhập</button>
+          <div className="text-[10px] text-center font-bold text-slate-400 uppercase italic">Hệ thống quản lý vật chất Sư đoàn 968</div>
         </form>
       </div>
     );
@@ -124,7 +149,7 @@ export default function App() {
   const canAccess = (tab) => {
     const r = currentUser.role;
     if (r === 'admin') return true;
-    if (r === 'thukho') return ['dashboard', 'products', 'audit', 'staff', 'history', 'adjust'].includes(tab);
+    if (r === 'thukho') return ['dashboard', 'products', 'audit', 'staff', 'history', 'adjust', 'logs'].includes(tab);
     if (r === 'coquan') return ['dashboard', 'products', 'in', 'out', 'history'].includes(tab);
     if (r === 'view') return ['dashboard', 'products'].includes(tab);
     return false;
@@ -133,7 +158,12 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans">
       <aside className="w-64 bg-slate-900 text-slate-400 p-4 flex flex-col no-print border-r border-slate-800">
-        <div className="font-black text-white mb-8 flex flex-col gap-1 px-2 italic text-xl border-b border-slate-800 pb-4"><Activity className="inline text-blue-500 mr-2"/>W-MANAGER</div>
+        <div className="font-black text-white mb-6 flex flex-col gap-1 px-2 italic text-xl border-b border-slate-800 pb-4">
+            <Activity className="inline text-blue-500 mr-2"/>W-MANAGER
+            <span className={`text-[10px] not-italic font-bold flex items-center gap-1 ${isOnline ? 'text-emerald-500' : 'text-orange-500'}`}>
+                {isOnline ? <Wifi size={10}/> : <WifiOff size={10}/>} {isOnline ? 'TRỰC TUYẾN' : 'NGOẠI TUYẾN'}
+            </span>
+        </div>
         <nav className="space-y-1 flex-1 text-xs font-bold uppercase">
           {canAccess('dashboard') && <NavBtn active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={LayoutDashboard} label="Báo cáo" />}
           {canAccess('products') && <NavBtn active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={List} label="Hàng hóa" />}
@@ -142,30 +172,53 @@ export default function App() {
           {canAccess('in') && <NavBtn active={activeTab === 'in'} onClick={() => setActiveTab('in')} icon={ArrowDownCircle} label="Nhập kho" />}
           {canAccess('out') && <NavBtn active={activeTab === 'out'} onClick={() => setActiveTab('out')} icon={ArrowUpCircle} label="Xuất kho" />}
           {canAccess('adjust') && <NavBtn active={activeTab === 'adjust'} onClick={() => setActiveTab('adjust')} icon={RefreshCw} label="Điều chỉnh kho" />}
-          {canAccess('history') && <NavBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={History} label="Lịch sử" />}
+          {canAccess('history') && <NavBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={History} label="Lịch sử phiếu" />}
           
           <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase font-black">Hệ thống</div>
+          {canAccess('logs') && <NavBtn active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} icon={Activity} label="Nhật ký lệnh" />}
           {canAccess('staff') && <NavBtn active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} icon={UserCheck} label="Cán bộ ký" />}
           {canAccess('audit') && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={ClipboardCheck} label="Kiểm kê" />}
           {currentUser.role === 'admin' && <NavBtn active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={Users} label="Tài khoản" />}
         </nav>
-        <div className="border-t border-slate-800 pt-4 mt-4">
-            <div className="px-3 mb-2 text-[10px] text-blue-400 font-bold italic uppercase">{currentUser.name}</div>
-            <button onClick={() => setCurrentUser(null)} className="text-red-400 p-3 flex items-center gap-2 text-[10px] font-black w-full hover:bg-red-500/10 rounded-xl transition-colors"><LogOut size={14}/> ĐĂNG XUẤT</button>
+        <div className="border-t border-slate-800 pt-4 mt-4 space-y-2">
+            <div className="px-3 text-[10px] text-blue-400 font-bold italic uppercase truncate">{currentUser.name}</div>
+            <button onClick={() => setShowPwdModal(true)} className="text-slate-400 p-2 flex items-center gap-2 text-[10px] font-black w-full hover:bg-slate-800 rounded-lg transition-colors"><KeyRound size={14}/> ĐỔI MẬT KHẨU</button>
+            <button onClick={() => setCurrentUser(null)} className="text-red-400 p-2 flex items-center gap-2 text-[10px] font-black w-full hover:bg-red-500/10 rounded-lg transition-colors"><LogOut size={14}/> ĐĂNG XUẤT</button>
         </div>
       </aside>
 
       <main className="flex-1 p-8 overflow-y-auto h-screen no-print">
         {activeTab === 'dashboard' && <Dashboard data={data} />}
         {activeTab === 'products' && <Products data={data} setData={setData} user={currentUser} />}
-        {activeTab === 'in' && <Transaction type="in" data={data} setData={setData} />}
-        {activeTab === 'out' && <Transaction type="out" data={data} setData={setData} />}
-        {activeTab === 'adjust' && <AdjustmentModule data={data} setData={setData} log={addSystemLog} />}
+        {activeTab === 'in' && <Transaction type="in" data={data} setData={setData} log={addDetailedLog} />}
+        {activeTab === 'out' && <Transaction type="out" data={data} setData={setData} log={addDetailedLog} />}
+        {activeTab === 'adjust' && <AdjustmentModule data={data} setData={setData} log={addDetailedLog} />}
         {activeTab === 'history' && <HistoryTable data={data} onOpenDetail={setSelectedDoc} />}
+        {activeTab === 'logs' && <LogTable data={data} />}
         {activeTab === 'staff' && <StaffManagement data={data} setData={setData} />}
         {activeTab === 'audit' && <AuditManagement data={data} />}
-        {activeTab === 'users' && <UserManagement data={data} setData={setData} log={addSystemLog} />}
+        {activeTab === 'users' && <UserManagement data={data} setData={setData} log={addDetailedLog} />}
       </main>
+
+      {/* MODAL ĐỔI MẬT KHẨU */}
+      {showPwdModal && (
+          <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[200] backdrop-blur-sm p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-xs shadow-2xl relative">
+                  <button onClick={()=>setShowPwdModal(false)} className="absolute top-4 right-4 text-slate-400"><X size={20}/></button>
+                  <h3 className="text-lg font-black uppercase mb-4 italic">Đổi mật khẩu</h3>
+                  <input id="new_pwd" type="text" className="w-full border p-3 rounded-xl font-bold mb-4 bg-slate-50" placeholder="Mật khẩu mới (chữ & số)" />
+                  <button onClick={() => {
+                      const val = document.getElementById('new_pwd').value;
+                      if(val.length < 3) return alert("Mật khẩu quá ngắn!");
+                      setData(prev => ({ ...prev, users: prev.users.map(u => u.id === currentUser.id ? {...u, password: val} : u) }));
+                      setCurrentUser({...currentUser, password: val});
+                      setShowPwdModal(false);
+                      addDetailedLog("Tự đổi mật khẩu");
+                      alert("Đổi thành công!");
+                  }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold uppercase">Cập nhật ngay</button>
+              </div>
+          </div>
+      )}
 
       {selectedDoc && (
         <div className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
@@ -257,7 +310,7 @@ const Products = ({ data, setData, user }) => {
   );
 };
 
-const Transaction = ({ type, data, setData }) => {
+const Transaction = ({ type, data, setData, log }) => {
   const [cart, setCart] = useState([]);
   const [q, setQ] = useState('');
   const [signers, setSigners] = useState({ lập: '', giao: '', nhận: '', trưởng_ban: '', chủ_nhiệm: '' });
@@ -266,19 +319,39 @@ const Transaction = ({ type, data, setData }) => {
 
   const save = () => {
     if (!cart.length) return alert("Giỏ hàng trống!");
+    
+    // CHỐNG SỐ LƯỢNG ÂM KHI XUẤT
+    if (type === 'out') {
+        for (let item of cart) {
+            const prod = data.products.find(p => p.id === item.id);
+            if (item.qty > prod.bookStock) {
+                alert(`LỖI: Vật chất "${item.name}" chỉ còn ${prod.bookStock} trong kho. Không thể xuất ${item.qty}!`);
+                return;
+            }
+        }
+    }
+
     const code = `${type==='in'?'PN':'PX'}-${Date.now().toString().slice(-4)}`;
     const newDoc = { id: Date.now(), type: type==='in'?'Nhập':'Xuất', code, date: new Date().toLocaleString(), items: [...cart], isLocked: false, signers };
+    
     setData(prev => ({
       ...prev,
       products: prev.products.map(p => { 
           const i = cart.find(x => x.id === p.id); 
           if(!i) return p;
           const newStock = type === 'in' ? p.bookStock + i.qty : p.bookStock - i.qty;
-          // Phiếu chính quy thay đổi cả sổ sách và thực tế
           return { ...p, bookStock: newStock, physicalStock: newStock }; 
       }),
       [type === 'in' ? 'receipts' : 'issues']: [newDoc, ...(prev[type === 'in' ? 'receipts' : 'issues'] || [])]
     }));
+
+    cart.forEach(i => {
+        const prod = data.products.find(p => p.id === i.id);
+        const oldVal = prod.bookStock;
+        const newVal = type === 'in' ? oldVal + i.qty : oldVal - i.qty;
+        log(`${type==='in'?'Nhập':'Xuất'} kho phiếu ${code}`, `- ${i.sku} (${oldVal} → ${newVal})`);
+    });
+
     setCart([]); alert("Lưu phiếu thành công!");
   };
 
@@ -305,16 +378,27 @@ const Transaction = ({ type, data, setData }) => {
   );
 };
 
-// --- CHỨC NĂNG ĐIỀU CHỈNH KHO (GIAO DIỆN NHƯ NHẬP XUẤT) ---
 const AdjustmentModule = ({ data, setData, log }) => {
     const [cart, setCart] = useState([]);
     const [q, setQ] = useState('');
-    const [mode, setMode] = useState('add'); // add: nhập bù, sub: xuất bù
+    const [mode, setMode] = useState('add'); 
     
     const products = (data.products || []).filter(p => p.isActive && (p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())));
 
     const saveAdjustment = () => {
         if (!cart.length) return alert("Chưa chọn vật chất!");
+
+        // CHỐNG SỐ LƯỢNG ÂM KHI XUẤT BÙ
+        if (mode === 'sub') {
+            for (let item of cart) {
+                const prod = data.products.find(p => p.id === item.id);
+                if (item.qty > prod.physicalStock) {
+                    alert(`LỖI: Vật chất "${item.name}" thực tế chỉ còn ${prod.physicalStock}. Không thể trừ ${item.qty}!`);
+                    return;
+                }
+            }
+        }
+
         const newAdj = { id: Date.now(), date: new Date().toLocaleString(), type: mode === 'add' ? 'Nhập bù' : 'Xuất bù', items: [...cart] };
         
         setData(prev => ({
@@ -327,44 +411,36 @@ const AdjustmentModule = ({ data, setData, log }) => {
             adjustments: [newAdj, ...(prev.adjustments || [])]
         }));
         
-        log(`Điều chỉnh thực tế: ${mode === 'add' ? 'Cộng' : 'Trừ'} vật chất`);
+        cart.forEach(i => {
+            const prod = data.products.find(p => p.id === i.id);
+            const oldVal = prod.physicalStock;
+            const newVal = mode === 'add' ? oldVal + i.qty : oldVal - i.qty;
+            log(`Điều chỉnh tồn ${i.sku}`, `từ ${oldVal} → ${newVal}`);
+        });
+
         setCart([]); alert("Đã cập nhật tồn thực tế!");
     };
 
     return (
         <div className="flex flex-col gap-6 h-[calc(100vh-100px)]">
             <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase italic text-orange-600 flex items-center gap-2"><RefreshCw/> Điều chỉnh kho (Thực tế)</h2>
-                <div className="flex bg-white p-1 rounded-xl border font-bold text-xs uppercase">
+                <div className="flex bg-white p-1 rounded-xl border font-bold text-xs uppercase shadow-sm">
                     <button onClick={()=>setMode('add')} className={`px-6 py-2 rounded-lg transition-all ${mode==='add'?'bg-emerald-600 text-white shadow-md':'text-slate-400'}`}>NHẬP BÙ</button>
                     <button onClick={()=>setMode('sub')} className={`px-6 py-2 rounded-lg transition-all ${mode==='sub'?'bg-red-600 text-white shadow-md':'text-slate-400'}`}>XUẤT BÙ</button>
                 </div>
             </div>
-
             <div className="grid grid-cols-2 gap-8 flex-1 overflow-hidden uppercase font-bold italic pb-4">
                 <div className="bg-white border rounded-3xl overflow-y-auto divide-y shadow-sm flex flex-col">
                     <div className="p-4 bg-slate-50 border-b flex gap-2"><div className="relative flex-1 font-sans tracking-normal"><Search className="absolute left-3 top-2.5 text-slate-400" size={14}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Tìm mã hoặc tên..." className="w-full pl-8 pr-4 py-2 rounded-lg border outline-none" /></div></div>
-                    <div className="flex-1 overflow-y-auto divide-y">{products.map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-orange-50 flex justify-between items-center transition-colors"><div><p>{p.name}</p><p className="text-[10px] text-slate-400 font-sans italic">{p.sku}</p></div><span className="text-orange-600 font-mono">Tồn: {p.physicalStock}</span></button>))}</div>
+                    <div className="flex-1 overflow-y-auto divide-y">{products.map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-orange-50 flex justify-between items-center transition-colors"><div><p>{p.name}</p><p className="text-[10px] text-slate-400 font-sans italic">{p.sku}</p></div><span className="text-orange-600 font-mono">Thực tồn: {p.physicalStock}</span></button>))}</div>
                 </div>
-
                 <div className="flex flex-col gap-4 overflow-hidden">
                     <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col flex-1 overflow-hidden">
-                        <h3 className="text-orange-400 border-b border-slate-800 pb-2 text-xs font-black uppercase">Danh sách {mode==='add'?'nhập':'xuất'} thực tế</h3>
-                        <div className="flex-1 overflow-y-auto space-y-2 mt-4 pr-2">
+                        <h3 className="text-orange-400 border-b border-slate-800 pb-2 text-xs font-black uppercase">D/S {mode==='add'?'Cộng bù':'Trừ bù'} thực tế</h3>
+                        <div className="flex-1 overflow-y-auto space-y-2 mt-4 pr-2 scrollbar-hide">
                             {cart.map((i, idx) => (<div key={idx} className="flex justify-between bg-slate-800 p-3 rounded-xl border border-slate-700 items-center"><span>{i.name}</span><div className="flex gap-3 items-center"><input type="number" className="w-12 bg-transparent text-center border-b border-slate-600 outline-none" value={i.qty} onChange={e=>{const n=[...cart]; n[idx].qty=Number(e.target.value); setCart(n);}} /><button onClick={()=>setCart(cart.filter((_,j)=>j!==idx))} className="text-red-500 hover:bg-red-500/10 p-1 rounded transition-colors"><Trash2 size={14}/></button></div></div>))}
                         </div>
                         <button onClick={saveAdjustment} className={`w-full py-4 rounded-2xl font-black uppercase shadow-lg mt-6 transition-all ${mode==='add'?'bg-emerald-600 hover:bg-emerald-500':'bg-red-600 hover:bg-red-500'}`}>Lưu điều chỉnh</button>
-                    </div>
-
-                    <div className="bg-white border rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
-                        <h4 className="text-[10px] text-slate-400 font-black uppercase mb-3 flex items-center gap-2"><History size={14}/> Lịch sử điều chỉnh gần đây</h4>
-                        <div className="flex-1 overflow-y-auto text-[10px] divide-y tracking-tight italic">
-                            {(data.adjustments || []).map(adj => (
-                                <div key={adj.id} className="py-2 flex justify-between">
-                                    <span>{adj.date} - <span className={adj.type.includes('Nhập')?'text-emerald-600':'text-red-600'}>{adj.type}</span></span>
-                                    <span>{adj.items.length} món</span>
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 </div>
             </div>
@@ -383,16 +459,38 @@ const HistoryTable = ({ data, onOpenDetail }) => {
   );
 };
 
-const UserManagement = ({ data, setData }) => {
+// COMPONENT NHẬT KÝ CHI TIẾT
+const LogTable = ({ data }) => (
+    <div className="space-y-6">
+        <h2 className="text-2xl font-black uppercase italic flex items-center gap-2"><Activity className="text-blue-600"/> Nhật ký lệnh chi tiết</h2>
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-[11px] font-bold italic">
+            <div className="max-h-[70vh] overflow-y-auto p-4 space-y-2">
+                {(data.logs || []).map(log => (
+                    <div key={log.id} className="p-3 border-l-4 border-blue-500 bg-slate-50 flex justify-between items-center rounded-r-lg">
+                        <span>{log.action}</span>
+                        <span className="text-[10px] text-slate-400 font-sans tracking-normal">{log.time}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+const UserManagement = ({ data, setData, log }) => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', name: '', role: 'view' });
-  const save = (e) => { e.preventDefault(); setData(prev => ({ ...prev, users: [...prev.users, { ...form, id: Date.now() }] })); setShowModal(false); };
+  const save = (e) => { 
+      e.preventDefault(); 
+      setData(prev => ({ ...prev, users: [...prev.users, { ...form, id: Date.now() }] })); 
+      log(`Tạo tài khoản mới: ${form.username}`);
+      setShowModal(false); 
+  };
   return (
     <div className="space-y-6 font-bold uppercase italic">
       <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase">Tài khoản & Phân quyền</h2><button onClick={() => setShowModal(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl transition-all hover:bg-blue-700 shadow-md">+ TẠO MỚI</button></div>
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans font-bold"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Tên cán bộ</th><th className="px-6 py-4">Username</th><th className="px-6 py-4">Password</th><th className="px-6 py-4">Quyền</th><th className="px-6 py-4 text-center">Xóa</th></tr></thead>
       <tbody className="divide-y">{(data.users || []).map(u => (<tr key={u.id} className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 uppercase">{u.name}</td><td className="px-6 py-4 font-mono text-blue-600 lowercase">{u.username}</td><td className="px-6 py-4 font-mono">{u.password}</td><td className="px-6 py-4 text-xs">{USER_ROLES.find(r=>r.val===u.role)?.label}</td><td className="px-6 py-4 text-center"><button disabled={u.username==='admin'} onClick={()=>setData(p=>({...p, users:p.users.filter(x=>x.id!==u.id)}))} className="text-red-400 disabled:opacity-20 transition-colors hover:text-red-600"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>
-      {showModal && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl relative"><button type="button" onClick={()=>setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><X/></button><h3 className="text-xl font-black uppercase border-b pb-2">Tạo tài khoản</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Họ tên cán bộ" required /><input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Tên đăng nhập" required /><input type="password" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Mật khẩu" required /><select value={form.role} onChange={e=>setForm({...form, role:e.target.value})} className="w-full border p-3 rounded-xl bg-slate-50 font-bold">{USER_ROLES.map(r=><option key={r.val} value={r.val}>{r.label}</option>)}</select><button className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold uppercase shadow-lg">Xác nhận tạo</button></form></div>}
+      {showModal && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl relative"><button type="button" onClick={()=>setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><X/></button><h3 className="text-xl font-black uppercase border-b pb-2">Tạo tài khoản</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Họ tên cán bộ" required /><input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Tên đăng nhập" required /><input type="text" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Mật khẩu (chữ & số)" required /><select value={form.role} onChange={e=>setForm({...form, role:e.target.value})} className="w-full border p-3 rounded-xl bg-slate-50 font-bold">{USER_ROLES.map(r=><option key={r.val} value={r.val}>{r.label}</option>)}</select><button className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold uppercase shadow-lg">Xác nhận tạo</button></form></div>}
     </div>
   );
 };
