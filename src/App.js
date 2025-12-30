@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Package, LogOut, Trash2, Search, Printer, Eye,
   History, LayoutDashboard, List, ArrowDownCircle, ArrowUpCircle,
-  Edit2, Users, ShieldCheck, DollarSign, X, Lock, ClipboardCheck, Activity, UserCheck, Save, FileSpreadsheet, RefreshCw
+  Edit2, Users, ShieldCheck, DollarSign, X, Lock, ClipboardCheck, Activity, UserCheck, Save, FileSpreadsheet, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// --- HỆ THỐNG VÀ CẤU HÌNH ---
+// --- CẤU HÌNH HỆ THỐNG ---
 const supabaseUrl = 'https://orjswsnioitwlvtukpjy.supabase.co';
 const supabaseKey = 'sb_publishable_NKItGLk_9mXFVrRHSQKOKw_L-ulvjUP';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -21,7 +21,7 @@ const USER_ROLES = [
   { val: 'view', label: 'Thành phần khác (Chỉ xem)' }
 ];
 
-// Hàm xuất Excel
+// --- HELPER FUNCTIONS ---
 const exportToExcel = (fileName, sheetName, headers, rows) => {
   let xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">`;
   xml += `<Worksheet ss:Name="${sheetName}"><Table>`;
@@ -64,6 +64,7 @@ const initialData = {
   adjustments: []
 };
 
+// --- MAIN APP ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -79,7 +80,15 @@ export default function App() {
     const loadData = async () => {
       try {
         let { data: cloud } = await supabase.from('warehouse_data').select('content').eq('store_id', STORE_ID).maybeSingle();
-        if (cloud && cloud.content) setData({ ...initialData, ...cloud.content });
+        if (cloud && cloud.content) {
+            // Đảm bảo dữ liệu cũ có đủ 2 cột tồn
+            const migrated = cloud.content.products.map(p => ({
+                ...p,
+                bookStock: p.bookStock ?? p.currentStock ?? 0,
+                physicalStock: p.physicalStock ?? p.currentStock ?? 0
+            }));
+            setData({ ...initialData, ...cloud.content, products: migrated });
+        }
       } finally { setLoading(false); }
     };
     loadData();
@@ -97,16 +106,16 @@ export default function App() {
     setData(prev => ({ ...prev, logs: [newLog, ...(prev.logs || [])].slice(0, 100) }));
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold italic text-slate-500">Đang khởi tạo hệ thống quản lý...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold italic text-slate-500">Đang đồng bộ dữ liệu Zero Line...</div>;
 
   if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-        <form onSubmit={e => { e.preventDefault(); const u = data.users.find(x => x.username === loginForm.username && x.password === loginForm.password); if (u) { setCurrentUser(u); addSystemLog('Đăng nhập'); } else alert('Sai tài khoản hoặc mật khẩu!'); }} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
-          <div className="text-center mb-6"><ShieldCheck className="text-blue-600 mx-auto mb-2" size={48} /><h1 className="text-2xl font-black uppercase italic">Warehouse Pro</h1></div>
+        <form onSubmit={e => { e.preventDefault(); const u = data.users.find(x => x.username === loginForm.username && x.password === loginForm.password); if (u) { setCurrentUser(u); addSystemLog('Đăng nhập'); } else alert('Sai thông tin!'); }} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
+          <div className="text-center mb-6"><ShieldCheck className="text-blue-600 mx-auto mb-2" size={48} /><h1 className="text-2xl font-black uppercase italic tracking-tighter text-slate-800">Warehouse Pro</h1></div>
           <input className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Tên đăng nhập" onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} />
           <input type="password" className="w-full border p-3 rounded-xl bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mật khẩu" onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} />
-          <button className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold uppercase hover:bg-blue-600 transition-colors">Đăng nhập</button>
+          <button className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold uppercase hover:bg-blue-600 transition-all">Đăng nhập</button>
         </form>
       </div>
     );
@@ -129,19 +138,19 @@ export default function App() {
           {canAccess('dashboard') && <NavBtn active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={LayoutDashboard} label="Báo cáo" />}
           {canAccess('products') && <NavBtn active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={List} label="Hàng hóa" />}
           
-          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase">Nghiệp vụ</div>
+          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase font-black">Nghiệp vụ (M1)</div>
           {canAccess('in') && <NavBtn active={activeTab === 'in'} onClick={() => setActiveTab('in')} icon={ArrowDownCircle} label="Nhập kho" />}
           {canAccess('out') && <NavBtn active={activeTab === 'out'} onClick={() => setActiveTab('out')} icon={ArrowUpCircle} label="Xuất kho" />}
           {canAccess('adjust') && <NavBtn active={activeTab === 'adjust'} onClick={() => setActiveTab('adjust')} icon={RefreshCw} label="Điều chỉnh kho" />}
           {canAccess('history') && <NavBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={History} label="Lịch sử" />}
           
-          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase">Cấu hình</div>
+          <div className="pt-4 pb-1 px-3 text-[9px] text-slate-600 tracking-widest uppercase font-black">Hệ thống</div>
           {canAccess('staff') && <NavBtn active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} icon={UserCheck} label="Cán bộ ký" />}
           {canAccess('audit') && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={ClipboardCheck} label="Kiểm kê" />}
           {currentUser.role === 'admin' && <NavBtn active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={Users} label="Tài khoản" />}
         </nav>
         <div className="border-t border-slate-800 pt-4 mt-4">
-            <div className="px-3 mb-2 text-[10px] text-blue-400 font-bold italic">{currentUser.name} ({currentUser.role})</div>
+            <div className="px-3 mb-2 text-[10px] text-blue-400 font-bold italic uppercase">{currentUser.name}</div>
             <button onClick={() => setCurrentUser(null)} className="text-red-400 p-3 flex items-center gap-2 text-[10px] font-black w-full hover:bg-red-500/10 rounded-xl transition-colors"><LogOut size={14}/> ĐĂNG XUẤT</button>
         </div>
       </aside>
@@ -151,7 +160,7 @@ export default function App() {
         {activeTab === 'products' && <Products data={data} setData={setData} user={currentUser} />}
         {activeTab === 'in' && <Transaction type="in" data={data} setData={setData} />}
         {activeTab === 'out' && <Transaction type="out" data={data} setData={setData} />}
-        {activeTab === 'adjust' && <AdjustmentTool data={data} setData={setData} log={addSystemLog} />}
+        {activeTab === 'adjust' && <AdjustmentModule data={data} setData={setData} log={addSystemLog} />}
         {activeTab === 'history' && <HistoryTable data={data} onOpenDetail={setSelectedDoc} />}
         {activeTab === 'staff' && <StaffManagement data={data} setData={setData} />}
         {activeTab === 'audit' && <AuditManagement data={data} />}
@@ -166,15 +175,15 @@ export default function App() {
                   const headers = ["TT", "Tên hàng", "ĐVT", "Số lượng", "Đơn giá", "Thành tiền"];
                   const rows = selectedDoc.items.map((it, idx) => [idx+1, it.name, it.unit, it.qty, it.price, it.qty*it.price]);
                   exportToExcel(`Phieu_${selectedDoc.code}`, "ChiTiet", headers, rows);
-              }} className="bg-emerald-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg"><FileSpreadsheet size={18}/> EXCEL</button>
+              }} className="bg-emerald-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg transition-all"><FileSpreadsheet size={18}/> EXCEL</button>
               <button onClick={() => { 
                 setData(prev => ({
                   ...prev, 
                   [selectedDoc.type === 'Nhập' ? 'receipts' : 'issues']: prev[selectedDoc.type === 'Nhập' ? 'receipts' : 'issues'].map(d => d.id === selectedDoc.id ? {...d, isLocked: true} : d)
                 }));
                 window.print(); 
-              }} className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg hover:bg-blue-700"><Printer size={18}/> IN & KHÓA</button>
-              <button onClick={() => setSelectedDoc(null)} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200"><X/></button>
+              }} className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg hover:bg-blue-700 transition-all"><Printer size={18}/> IN & KHÓA</button>
+              <button onClick={() => setSelectedDoc(null)} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition-all"><X/></button>
             </div>
             <PrintTemplate doc={selectedDoc} />
           </div>
@@ -184,6 +193,8 @@ export default function App() {
   );
 }
 
+// --- COMPONENTS ---
+
 const NavBtn = ({ active, icon: Icon, label, onClick }) => (
   <button onClick={onClick} className={`flex items-center gap-3 w-full p-3 rounded-xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 hover:text-slate-200'}`}>
     <Icon size={16} /> {label}
@@ -192,13 +203,13 @@ const NavBtn = ({ active, icon: Icon, label, onClick }) => (
 
 const Dashboard = ({ data }) => {
   const activeProducts = (data.products || []).filter(p => p.isActive);
-  const totalValue = activeProducts.reduce((sum, p) => sum + (p.currentStock * p.price), 0);
+  const totalValue = activeProducts.reduce((sum, p) => sum + (p.bookStock * p.price), 0);
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-black uppercase italic">Tổng quan kho tàng</h2>
       <div className="grid grid-cols-2 gap-6 font-bold uppercase">
-        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4 border-l-4 border-l-blue-500"><Package size={30} className="text-blue-500"/><div><p className="text-xs text-slate-400">Chủng loại</p><h3 className="text-2xl font-black">{activeProducts.length}</h3></div></div>
-        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4 border-l-4 border-l-emerald-500"><DollarSign size={30} className="text-emerald-500"/><div><p className="text-xs text-slate-400">Giá trị tồn</p><h3 className="text-2xl font-black">{totalValue.toLocaleString()}đ</h3></div></div>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4 border-l-4 border-l-blue-500"><Package size={30} className="text-blue-500"/><div><p className="text-[10px] text-slate-400">Số chủng loại</p><h3 className="text-2xl font-black">{activeProducts.length}</h3></div></div>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4 border-l-4 border-l-emerald-500"><DollarSign size={30} className="text-emerald-500"/><div><p className="text-[10px] text-slate-400">Giá trị sổ sách</p><h3 className="text-2xl font-black">{totalValue.toLocaleString()}đ</h3></div></div>
       </div>
     </div>
   );
@@ -206,129 +217,182 @@ const Dashboard = ({ data }) => {
 
 const Products = ({ data, setData, user }) => {
   const [showForm, setShowForm] = useState(false);
+  const [q, setQ] = useState('');
   const [form, setForm] = useState({ sku: '', name: '', unit: 'Bộ', price: 0 });
   const isAdmin = user.role === 'admin' || user.role === 'thukho';
+  
+  const filtered = (data.products || []).filter(p => p.isActive && (p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())));
+
   const save = (e) => {
     e.preventDefault();
-    setData(prev => ({ ...prev, products: [...(prev.products || []), { ...form, id: Date.now(), isActive: true, currentStock: 0 }] }));
+    setData(prev => ({ ...prev, products: [...(prev.products || []), { ...form, id: Date.now(), isActive: true, bookStock: 0, physicalStock: 0 }] }));
     setShowForm(false);
   };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase italic">Danh mục vật chất</h2>
         <div className="flex gap-2">
-          <button onClick={() => exportToExcel("DM", "Hàng", ["SKU", "Tên", "ĐVT", "Giá", "Tồn"], data.products.map(p=>[p.sku, p.name, p.unit, p.price, p.currentStock]))} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2"><FileSpreadsheet size={18}/> EXCEL</button>
-          {isAdmin && <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold">+ THÊM MỚI</button>}
+          <div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Tìm tên hoặc mã SKU..." className="pl-10 pr-4 py-2 rounded-xl border font-bold text-sm w-64 outline-none focus:ring-2 focus:ring-blue-500 transition-all" /></div>
+          <button onClick={() => exportToExcel("DM", "Hàng", ["SKU", "Tên", "ĐVT", "Sổ sách", "Thực tế"], data.products.map(p=>[p.sku, p.name, p.unit, p.bookStock, p.physicalStock]))} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all hover:bg-emerald-700 shadow-md"><FileSpreadsheet size={18}/> EXCEL</button>
+          {isAdmin && <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all hover:bg-blue-700 shadow-md">+ THÊM MỚI</button>}
         </div>
       </div>
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs font-bold uppercase tracking-wider">
-        <table className="w-full text-left tracking-wider"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Mã SKU</th><th className="px-6 py-4">Tên vật chất</th><th className="px-6 py-4 text-center">Tồn kho</th></tr></thead>
-        <tbody className="divide-y">{(data.products || []).filter(p => p.isActive).map(p => (<tr key={p.id} className="hover:bg-slate-50"><td className="px-6 py-4 font-mono text-blue-600">{p.sku}</td><td className="px-6 py-4">{p.name}</td><td className="px-6 py-4 text-center">{p.currentStock} {p.unit}</td></tr>))}</tbody></table>
+        <table className="w-full text-left"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Mã SKU</th><th className="px-6 py-4">Tên vật chất</th><th className="px-6 py-4 text-center">Sổ sách</th><th className="px-6 py-4 text-center">Thực tế</th><th className="px-6 py-4 text-center">Chênh lệch</th></tr></thead>
+        <tbody className="divide-y">{filtered.map(p => {
+            const diff = p.physicalStock - p.bookStock;
+            return (
+                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-mono text-blue-600">{p.sku}</td>
+                    <td className="px-6 py-4">{p.name}</td>
+                    <td className="px-6 py-4 text-center font-black">{p.bookStock} {p.unit}</td>
+                    <td className="px-6 py-4 text-center font-black text-emerald-600 bg-emerald-50/30">{p.physicalStock} {p.unit}</td>
+                    <td className={`px-6 py-4 text-center font-black ${diff !== 0 ? 'text-red-500' : 'text-slate-300'}`}>{diff > 0 ? `+${diff}` : diff}</td>
+                </tr>
+            )})}</tbody></table>
       </div>
-      {showForm && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl relative"><button type="button" onClick={()=>setShowForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><X/></button><h3 className="text-xl font-black italic border-b pb-2 uppercase">Thêm hàng mới</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold" placeholder="Tên vật chất" required /><input value={form.sku} onChange={e=>setForm({...form, sku:e.target.value.toUpperCase()})} className="w-full border p-3 rounded-xl font-mono" placeholder="Mã SKU" required /><input type="number" value={form.price} onChange={e=>setForm({...form, price:Number(e.target.value)})} className="w-full border p-3 rounded-xl font-bold" placeholder="Đơn giá" required /><button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold uppercase">Lưu vật chất</button></form></div>}
+      {showForm && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl relative"><button type="button" onClick={()=>setShowForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors"><X/></button><h3 className="text-xl font-black italic border-b pb-2 uppercase tracking-tighter">Thêm vật chất mới</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold" placeholder="Tên vật chất" required /><input value={form.sku} onChange={e=>setForm({...form, sku:e.target.value.toUpperCase()})} className="w-full border p-3 rounded-xl font-mono" placeholder="Mã SKU (VD: TB001)" required /><input type="number" value={form.price} onChange={e=>setForm({...form, price:Number(e.target.value)})} className="w-full border p-3 rounded-xl font-bold" placeholder="Đơn giá" required /><button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold uppercase shadow-lg hover:bg-blue-700">Lưu vật chất</button></form></div>}
     </div>
   );
 };
 
 const Transaction = ({ type, data, setData }) => {
   const [cart, setCart] = useState([]);
+  const [q, setQ] = useState('');
   const [signers, setSigners] = useState({ lập: '', giao: '', nhận: '', trưởng_ban: '', chủ_nhiệm: '' });
+  
+  const products = (data.products || []).filter(p => p.isActive && (p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())));
+
   const save = () => {
     if (!cart.length) return alert("Giỏ hàng trống!");
     const code = `${type==='in'?'PN':'PX'}-${Date.now().toString().slice(-4)}`;
     const newDoc = { id: Date.now(), type: type==='in'?'Nhập':'Xuất', code, date: new Date().toLocaleString(), items: [...cart], isLocked: false, signers };
     setData(prev => ({
       ...prev,
-      products: prev.products.map(p => { const i = cart.find(x => x.id === p.id); return i ? { ...p, currentStock: type === 'in' ? p.currentStock + i.qty : p.currentStock - i.qty } : p; }),
+      products: prev.products.map(p => { 
+          const i = cart.find(x => x.id === p.id); 
+          if(!i) return p;
+          const newStock = type === 'in' ? p.bookStock + i.qty : p.bookStock - i.qty;
+          // Phiếu chính quy thay đổi cả sổ sách và thực tế
+          return { ...p, bookStock: newStock, physicalStock: newStock }; 
+      }),
       [type === 'in' ? 'receipts' : 'issues']: [newDoc, ...(prev[type === 'in' ? 'receipts' : 'issues'] || [])]
     }));
     setCart([]); alert("Lưu phiếu thành công!");
   };
+
   return (
     <div className="grid grid-cols-2 gap-8 uppercase font-bold italic h-[calc(100vh-160px)]">
-      <div className="bg-white border rounded-3xl overflow-y-auto divide-y shadow-sm">
-        <div className="p-4 bg-slate-50 border-b sticky top-0 font-sans tracking-normal text-xs uppercase text-slate-400"><Search className="inline mr-2" size={14}/> Tìm vật chất chọn nhanh</div>
-        {(data.products || []).filter(p => p.isActive).map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-blue-50 flex justify-between items-center transition-colors"><div><p>{p.name}</p><p className="text-[10px] text-slate-400 font-sans italic tracking-normal">{p.sku}</p></div><span className="text-blue-600">{p.currentStock}</span></button>))}
+      <div className="bg-white border rounded-3xl overflow-y-auto divide-y shadow-sm flex flex-col">
+        <div className="p-4 bg-slate-50 border-b sticky top-0 font-sans tracking-normal text-xs uppercase flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-slate-400" size={14}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Tìm kiếm nhanh..." className="w-full pl-8 pr-4 py-2 rounded-lg border outline-none" /></div></div>
+        <div className="flex-1 overflow-y-auto divide-y">{products.map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-blue-50 flex justify-between items-center transition-colors"><div><p>{p.name}</p><p className="text-[10px] text-slate-400 font-sans italic tracking-normal">{p.sku}</p></div><span className="text-blue-600 font-mono">{p.bookStock}</span></button>))}</div>
       </div>
       <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col space-y-4">
-        <h3 className="text-blue-400 border-b border-slate-800 pb-2 text-xs font-black uppercase">Thành phần tham gia phiếu</h3>
+        <h3 className="text-blue-400 border-b border-slate-800 pb-2 text-xs font-black uppercase">Thông tin thành phần tham gia</h3>
         <div className="grid grid-cols-2 gap-2 text-[10px] font-sans italic tracking-normal">
-            <select className="bg-slate-800 p-2 rounded border border-slate-700 outline-none" onChange={e=>setSigners({...signers, lập:e.target.value})}><option value="">-- Người lập --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
-            <select className="bg-slate-800 p-2 rounded border border-slate-700 outline-none" onChange={e=>setSigners({...signers, giao:e.target.value})}><option value="">-- Người giao/nhận --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
-            <select className="bg-slate-800 p-2 rounded border border-slate-700 outline-none" onChange={e=>setSigners({...signers, trưởng_ban:e.target.value})}><option value="">-- Trưởng ban --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
-            <select className="bg-slate-800 p-2 rounded border border-slate-700 outline-none" onChange={e=>setSigners({...signers, chủ_nhiệm:e.target.value})}><option value="">-- Chủ nhiệm --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
+            <select className="bg-slate-800 p-2 rounded border border-slate-700" onChange={e=>setSigners({...signers, lập:e.target.value})}><option value="">-- Người lập --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
+            <select className="bg-slate-800 p-2 rounded border border-slate-700" onChange={e=>setSigners({...signers, giao:e.target.value})}><option value="">-- Người giao/nhận --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
+            <select className="bg-slate-800 p-2 rounded border border-slate-700" onChange={e=>setSigners({...signers, trưởng_ban:e.target.value})}><option value="">-- Trưởng ban --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
+            <select className="bg-slate-800 p-2 rounded border border-slate-700" onChange={e=>setSigners({...signers, chủ_nhiệm:e.target.value})}><option value="">-- Chủ nhiệm --</option>{data.staff.map(s=><option key={s.id} value={s.rank+' '+s.name}>{s.rank+' '+s.name}</option>)}</select>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-2 border-t border-slate-800 pt-4">
-          {cart.map((i, idx) => (<div key={idx} className="flex justify-between bg-slate-800 p-3 rounded-xl border border-slate-700 items-center"><span>{i.name}</span><div className="flex gap-3 items-center"><input type="number" className="w-12 bg-transparent text-center border-b border-slate-600 outline-none" value={i.qty} onChange={e=>{const n=[...cart]; n[idx].qty=Number(e.target.value); setCart(n);}} /><button onClick={()=>setCart(cart.filter((_,j)=>j!==idx))} className="text-red-500 hover:bg-red-500/10 p-1 rounded"><Trash2 size={14}/></button></div></div>))}
+        <div className="flex-1 overflow-y-auto space-y-2 border-t border-slate-800 pt-4 scrollbar-hide">
+          {cart.map((i, idx) => (<div key={idx} className="flex justify-between bg-slate-800 p-3 rounded-xl border border-slate-700 items-center"><span>{i.name}</span><div className="flex gap-3 items-center font-sans tracking-normal"><input type="number" className="w-12 bg-transparent text-center border-b border-slate-600 outline-none" value={i.qty} onChange={e=>{const n=[...cart]; n[idx].qty=Number(e.target.value); setCart(n);}} /><button onClick={()=>setCart(cart.filter((_,j)=>j!==idx))} className="text-red-500 hover:bg-red-500/10 p-1 rounded"><Trash2 size={14}/></button></div></div>))}
         </div>
-        <button onClick={save} className="w-full bg-blue-600 py-4 rounded-2xl font-black uppercase shadow-lg hover:bg-blue-500 transition-colors">Xác nhận lưu hệ thống</button>
+        <button onClick={save} className="w-full bg-blue-600 py-4 rounded-2xl font-black uppercase shadow-lg hover:bg-blue-500 transition-all">Xác nhận lưu hệ thống</button>
       </div>
     </div>
   );
 };
 
-// --- CHỨC NĂNG MỚI: ĐIỀU CHỈNH KHO KHÔNG TIỀN ---
-const AdjustmentTool = ({ data, setData, log }) => {
-  const [targetId, setTargetId] = useState('');
-  const [qty, setQty] = useState(0);
+// --- CHỨC NĂNG ĐIỀU CHỈNH KHO (GIAO DIỆN NHƯ NHẬP XUẤT) ---
+const AdjustmentModule = ({ data, setData, log }) => {
+    const [cart, setCart] = useState([]);
+    const [q, setQ] = useState('');
+    const [mode, setMode] = useState('add'); // add: nhập bù, sub: xuất bù
+    
+    const products = (data.products || []).filter(p => p.isActive && (p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())));
 
-  const apply = (mode) => {
-    if (!targetId || qty <= 0) return alert("Chọn hàng và nhập số lượng!");
-    setData(prev => ({
-      ...prev,
-      products: prev.products.map(p => p.id == targetId ? { ...p, currentStock: mode === 'add' ? p.currentStock + qty : p.currentStock - qty } : p)
-    }));
-    log(`${mode === 'add' ? 'Nhập bù' : 'Xuất bù'} không phiếu: ${qty} đơn vị`);
-    setQty(0); alert("Đã cập nhật tồn kho!");
-  };
+    const saveAdjustment = () => {
+        if (!cart.length) return alert("Chưa chọn vật chất!");
+        const newAdj = { id: Date.now(), date: new Date().toLocaleString(), type: mode === 'add' ? 'Nhập bù' : 'Xuất bù', items: [...cart] };
+        
+        setData(prev => ({
+            ...prev,
+            products: prev.products.map(p => {
+                const i = cart.find(x => x.id === p.id);
+                if (!i) return p;
+                return { ...p, physicalStock: mode === 'add' ? p.physicalStock + i.qty : p.physicalStock - i.qty };
+            }),
+            adjustments: [newAdj, ...(prev.adjustments || [])]
+        }));
+        
+        log(`Điều chỉnh thực tế: ${mode === 'add' ? 'Cộng' : 'Trừ'} vật chất`);
+        setCart([]); alert("Đã cập nhật tồn thực tế!");
+    };
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-black uppercase italic text-orange-600 flex items-center gap-2"><RefreshCw/> Điều chỉnh kho (Không tiền)</h2>
-      <div className="bg-white p-8 rounded-3xl border shadow-sm max-w-lg space-y-4 italic font-bold">
-        <p className="text-xs text-slate-400 tracking-tight">Dùng cho trường hợp nhập/xuất vật chất lẻ, không qua hóa đơn tài chính.</p>
-        <div>
-          <label className="text-xs block mb-1">Chọn vật chất:</label>
-          <select value={targetId} onChange={e=>setTargetId(e.target.value)} className="w-full border p-3 rounded-xl bg-slate-50 uppercase">
-            <option value="">-- Chọn hàng hóa --</option>
-            {data.products.map(p => <option key={p.id} value={p.id}>{p.name} (Tồn: {p.currentStock})</option>)}
-          </select>
+    return (
+        <div className="flex flex-col gap-6 h-[calc(100vh-100px)]">
+            <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase italic text-orange-600 flex items-center gap-2"><RefreshCw/> Điều chỉnh kho (Thực tế)</h2>
+                <div className="flex bg-white p-1 rounded-xl border font-bold text-xs uppercase">
+                    <button onClick={()=>setMode('add')} className={`px-6 py-2 rounded-lg transition-all ${mode==='add'?'bg-emerald-600 text-white shadow-md':'text-slate-400'}`}>NHẬP BÙ</button>
+                    <button onClick={()=>setMode('sub')} className={`px-6 py-2 rounded-lg transition-all ${mode==='sub'?'bg-red-600 text-white shadow-md':'text-slate-400'}`}>XUẤT BÙ</button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8 flex-1 overflow-hidden uppercase font-bold italic pb-4">
+                <div className="bg-white border rounded-3xl overflow-y-auto divide-y shadow-sm flex flex-col">
+                    <div className="p-4 bg-slate-50 border-b flex gap-2"><div className="relative flex-1 font-sans tracking-normal"><Search className="absolute left-3 top-2.5 text-slate-400" size={14}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Tìm mã hoặc tên..." className="w-full pl-8 pr-4 py-2 rounded-lg border outline-none" /></div></div>
+                    <div className="flex-1 overflow-y-auto divide-y">{products.map(p => (<button key={p.id} onClick={() => setCart([...cart, {...p, qty: 1}])} className="w-full text-left p-4 hover:bg-orange-50 flex justify-between items-center transition-colors"><div><p>{p.name}</p><p className="text-[10px] text-slate-400 font-sans italic">{p.sku}</p></div><span className="text-orange-600 font-mono">Tồn: {p.physicalStock}</span></button>))}</div>
+                </div>
+
+                <div className="flex flex-col gap-4 overflow-hidden">
+                    <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col flex-1 overflow-hidden">
+                        <h3 className="text-orange-400 border-b border-slate-800 pb-2 text-xs font-black uppercase">Danh sách {mode==='add'?'nhập':'xuất'} thực tế</h3>
+                        <div className="flex-1 overflow-y-auto space-y-2 mt-4 pr-2">
+                            {cart.map((i, idx) => (<div key={idx} className="flex justify-between bg-slate-800 p-3 rounded-xl border border-slate-700 items-center"><span>{i.name}</span><div className="flex gap-3 items-center"><input type="number" className="w-12 bg-transparent text-center border-b border-slate-600 outline-none" value={i.qty} onChange={e=>{const n=[...cart]; n[idx].qty=Number(e.target.value); setCart(n);}} /><button onClick={()=>setCart(cart.filter((_,j)=>j!==idx))} className="text-red-500 hover:bg-red-500/10 p-1 rounded transition-colors"><Trash2 size={14}/></button></div></div>))}
+                        </div>
+                        <button onClick={saveAdjustment} className={`w-full py-4 rounded-2xl font-black uppercase shadow-lg mt-6 transition-all ${mode==='add'?'bg-emerald-600 hover:bg-emerald-500':'bg-red-600 hover:bg-red-500'}`}>Lưu điều chỉnh</button>
+                    </div>
+
+                    <div className="bg-white border rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
+                        <h4 className="text-[10px] text-slate-400 font-black uppercase mb-3 flex items-center gap-2"><History size={14}/> Lịch sử điều chỉnh gần đây</h4>
+                        <div className="flex-1 overflow-y-auto text-[10px] divide-y tracking-tight italic">
+                            {(data.adjustments || []).map(adj => (
+                                <div key={adj.id} className="py-2 flex justify-between">
+                                    <span>{adj.date} - <span className={adj.type.includes('Nhập')?'text-emerald-600':'text-red-600'}>{adj.type}</span></span>
+                                    <span>{adj.items.length} món</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div>
-          <label className="text-xs block mb-1">Số lượng điều chỉnh:</label>
-          <input type="number" value={qty} onChange={e=>setQty(Number(e.target.value))} className="w-full border p-3 rounded-xl bg-slate-50" />
-        </div>
-        <div className="grid grid-cols-2 gap-4 pt-4">
-          <button onClick={()=>apply('add')} className="bg-emerald-600 text-white py-3 rounded-xl font-black uppercase">Nhập bù</button>
-          <button onClick={()=>apply('sub')} className="bg-red-600 text-white py-3 rounded-xl font-black uppercase">Xuất bù</button>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 const HistoryTable = ({ data, onOpenDetail }) => {
   const all = [...(data.receipts || []), ...(data.issues || [])].sort((a,b) => b.id - a.id);
   return (
     <div className="space-y-6 uppercase font-bold italic">
-      <h2 className="text-2xl font-black">Lịch sử giao dịch</h2>
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans tracking-widest"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Mã số</th><th className="px-6 py-4">Loại</th><th className="px-6 py-4">Ngày tháng</th><th className="px-6 py-4 text-center">Khóa</th></tr></thead>
-      <tbody className="divide-y">{all.map(d => (<tr key={d.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onOpenDetail(d)}><td className="px-6 py-4 text-blue-600 font-mono">{d.code}</td><td className="px-6 py-4">{d.type}</td><td className="px-6 py-4">{d.date}</td><td className="px-6 py-4 text-center">{d.isLocked ? <Lock size={14} className="mx-auto text-red-500"/> : <X size={14} className="mx-auto text-slate-300"/>}</td></tr>))}</tbody></table></div>
+      <h2 className="text-2xl font-black uppercase">Lịch sử giao dịch phiếu</h2>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans tracking-widest"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Mã số</th><th className="px-6 py-4">Loại</th><th className="px-6 py-4">Ngày tháng</th><th className="px-6 py-4 text-center">Trạng thái</th></tr></thead>
+      <tbody className="divide-y">{all.map(d => (<tr key={d.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => onOpenDetail(d)}><td className="px-6 py-4 text-blue-600 font-mono">{d.code}</td><td className="px-6 py-4">{d.type}</td><td className="px-6 py-4">{d.date}</td><td className="px-6 py-4 text-center">{d.isLocked ? <div className="flex items-center justify-center text-red-500 gap-1"><Lock size={12}/> Khóa</div> : <div className="flex items-center justify-center text-slate-300 gap-1"><X size={12}/> Mở</div>}</td></tr>))}</tbody></table></div>
     </div>
   );
 };
 
-// --- TÀI KHOẢN: HIỆN THÔNG TIN CHI TIẾT CHO ADMIN ---
 const UserManagement = ({ data, setData }) => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', name: '', role: 'view' });
   const save = (e) => { e.preventDefault(); setData(prev => ({ ...prev, users: [...prev.users, { ...form, id: Date.now() }] })); setShowModal(false); };
   return (
     <div className="space-y-6 font-bold uppercase italic">
-      <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase">Quản lý Tài khoản phụ</h2><button onClick={() => setShowModal(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl">+ TẠO MỚI</button></div>
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans font-bold tracking-tighter"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Tên hiển thị</th><th className="px-6 py-4">Username</th><th className="px-6 py-4">Mật khẩu</th><th className="px-6 py-4">Vai trò</th><th className="px-6 py-4 text-center">Thao tác</th></tr></thead>
-      <tbody className="divide-y">{(data.users || []).map(u => (<tr key={u.id} className="hover:bg-slate-50"><td className="px-6 py-4">{u.name}</td><td className="px-6 py-4 font-mono text-blue-600">{u.username}</td><td className="px-6 py-4 font-mono">{u.password}</td><td className="px-6 py-4">{u.role}</td><td className="px-6 py-4 text-center"><button disabled={u.username==='admin'} onClick={()=>setData(p=>({...p, users:p.users.filter(x=>x.id!==u.id)}))} className="text-red-400 disabled:opacity-20"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>
-      {showModal && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl relative"><button type="button" onClick={()=>setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><X/></button><h3 className="text-xl font-black uppercase italic border-b pb-2">Thêm tài khoản</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Họ tên cán bộ" required /><input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Tên đăng nhập" required /><input type="password" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Mật khẩu" required /><select value={form.role} onChange={e=>setForm({...form, role:e.target.value})} className="w-full border p-3 rounded-xl bg-slate-50 font-bold">{USER_ROLES.map(r=><option key={r.val} value={r.val}>{r.label}</option>)}</select><button className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold uppercase">Xác nhận tạo</button></form></div>}
+      <div className="flex justify-between items-center"><h2 className="text-2xl font-black uppercase">Tài khoản & Phân quyền</h2><button onClick={() => setShowModal(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl transition-all hover:bg-blue-700 shadow-md">+ TẠO MỚI</button></div>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs"><table className="w-full text-left font-sans font-bold"><thead className="bg-slate-900 text-slate-400"><tr><th className="px-6 py-4">Tên cán bộ</th><th className="px-6 py-4">Username</th><th className="px-6 py-4">Password</th><th className="px-6 py-4">Quyền</th><th className="px-6 py-4 text-center">Xóa</th></tr></thead>
+      <tbody className="divide-y">{(data.users || []).map(u => (<tr key={u.id} className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 uppercase">{u.name}</td><td className="px-6 py-4 font-mono text-blue-600 lowercase">{u.username}</td><td className="px-6 py-4 font-mono">{u.password}</td><td className="px-6 py-4 text-xs">{USER_ROLES.find(r=>r.val===u.role)?.label}</td><td className="px-6 py-4 text-center"><button disabled={u.username==='admin'} onClick={()=>setData(p=>({...p, users:p.users.filter(x=>x.id!==u.id)}))} className="text-red-400 disabled:opacity-20 transition-colors hover:text-red-600"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>
+      {showModal && <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[110] backdrop-blur-sm"><form onSubmit={save} className="bg-white p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl relative"><button type="button" onClick={()=>setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><X/></button><h3 className="text-xl font-black uppercase border-b pb-2">Tạo tài khoản</h3><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Họ tên cán bộ" required /><input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Tên đăng nhập" required /><input type="password" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-slate-50" placeholder="Mật khẩu" required /><select value={form.role} onChange={e=>setForm({...form, role:e.target.value})} className="w-full border p-3 rounded-xl bg-slate-50 font-bold">{USER_ROLES.map(r=><option key={r.val} value={r.val}>{r.label}</option>)}</select><button className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold uppercase shadow-lg">Xác nhận tạo</button></form></div>}
     </div>
   );
 };
@@ -340,35 +404,41 @@ const StaffManagement = ({ data, setData }) => {
     <div className="space-y-6 font-bold uppercase italic">
       <h2 className="text-2xl font-black uppercase">Nhân sự ký duyệt</h2>
       <div className="bg-white p-6 rounded-2xl border flex gap-4 items-end font-sans tracking-normal text-xs italic">
-        <div className="flex-1"><label>Họ tên</label><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-2 rounded-lg outline-none" /></div>
+        <div className="flex-1"><label>Họ tên</label><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full border p-2 rounded-lg outline-none focus:border-blue-500" /></div>
         <div className="w-32"><label>Cấp bậc</label><select value={form.rank} onChange={e=>setForm({...form, rank:e.target.value})} className="w-full border p-2 rounded-lg outline-none">{RANKS.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
         <div className="w-40"><label>Chức vụ</label><select value={form.role} onChange={e=>setForm({...form, role:e.target.value})} className="w-full border p-2 rounded-lg outline-none">{POSITIONS.map(p=><option key={p} value={p}>{p}</option>)}</select></div>
-        <button onClick={saveStaff} className="bg-blue-600 text-white p-2.5 rounded-lg px-6 font-black italic shadow-lg">THÊM</button>
+        <button onClick={saveStaff} className="bg-blue-600 text-white p-2.5 rounded-lg px-6 font-black shadow-lg hover:bg-blue-700 transition-all">THÊM</button>
       </div>
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs font-bold font-sans tracking-widest"><table className="w-full text-left"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Chức vụ</th><th className="px-6 py-4">Họ tên</th><th className="px-6 py-4 text-center">Xóa</th></tr></thead>
-      <tbody className="divide-y">{(data.staff || []).map(s => (<tr key={s.id} className="hover:bg-slate-50"><td className="px-6 py-4 text-blue-600">{s.role}</td><td className="px-6 py-4">{s.rank} {s.name}</td><td className="px-6 py-4 text-center"><button onClick={()=>setData(p=>({...p, staff:p.staff.filter(x=>x.id!==s.id)}))} className="text-red-400"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden text-xs font-bold font-sans tracking-widest"><table className="w-full text-left font-bold uppercase"><thead className="bg-slate-900 text-white"><tr><th className="px-6 py-4">Chức vụ</th><th className="px-6 py-4">Họ tên</th><th className="px-6 py-4 text-center">Xóa</th></tr></thead>
+      <tbody className="divide-y">{(data.staff || []).map(s => (<tr key={s.id} className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 text-blue-600">{s.role}</td><td className="px-6 py-4">{s.rank} {s.name}</td><td className="px-6 py-4 text-center"><button onClick={()=>setData(p=>({...p, staff:p.staff.filter(x=>x.id!==s.id)}))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>
     </div>
   );
 };
 
-const AuditManagement = ({ data }) => { return <div className="p-12 bg-white rounded-3xl border shadow-sm text-center font-bold italic uppercase tracking-widest text-slate-400">Hệ thống kiểm kê đồng bộ Zero line (M1)</div>; };
+const AuditManagement = ({ data }) => { 
+    return <div className="flex flex-col items-center justify-center p-20 bg-white rounded-3xl border shadow-sm text-center">
+        <AlertTriangle size={60} className="text-orange-400 mb-4 animate-pulse"/>
+        <h3 className="text-2xl font-black italic uppercase tracking-widest text-slate-800">Kiểm kê Zero Line (M1)</h3>
+        <p className="text-slate-400 mt-2 font-bold italic uppercase text-xs">Hệ thống đang đồng bộ dữ liệu thực tế & sổ sách để xuất báo cáo đối chiếu...</p>
+    </div>; 
+};
 
 const PrintTemplate = ({ doc }) => {
   const total = (doc.items || []).reduce((s, i) => s + (i.qty * i.price), 0);
   return (
     <div className="font-serif text-black leading-tight p-2">
-      <div className="grid grid-cols-2 text-sm mb-6">
-        <div><p className="uppercase">Quân khu 4</p><p className="font-bold uppercase underline">Sư đoàn 968</p></div>
-        <div className="text-right uppercase font-bold"><p>Mẫu số: SS14-QN10</p><p>Số: {doc.code}</p></div>
+      <div className="grid grid-cols-2 text-sm mb-6 uppercase">
+        <div><p>Quân khu 4</p><p className="font-bold underline">Sư đoàn 968</p></div>
+        <div className="text-right font-bold"><p>Mẫu số: SS14-QN10</p><p>Số: {doc.code}</p></div>
       </div>
       <h2 className="text-center text-xl font-bold uppercase mb-4 underline">PHIẾU {doc.type.toUpperCase()} KHO VẬT CHẤT</h2>
       <div className="text-[11px] mb-4 space-y-1">
-        <p>Ngày tháng: {doc.date}</p>
-        <p>Kho hàng: Kho Chính Pro</p>
+        <p>Ngày lập phiếu: {doc.date}</p>
+        <p>Địa điểm: Kho Chính - Sư đoàn 968</p>
       </div>
       <table className="w-full border-collapse border border-black text-[11px]">
-        <thead><tr className="bg-slate-50">
-            <th className="border border-black p-1">STT</th><th className="border border-black p-1 text-left">Tên hàng hóa, vật chất</th>
+        <thead><tr className="bg-slate-50 uppercase">
+            <th className="border border-black p-1">STT</th><th className="border border-black p-1 text-left">Tên vật chất, khí tài</th>
             <th className="border border-black p-1">ĐVT</th><th className="border border-black p-1">Số lượng</th>
             <th className="border border-black p-1 text-right">Đơn giá</th><th className="border border-black p-1 text-right">Thành tiền</th>
         </tr></thead>
@@ -377,13 +447,13 @@ const PrintTemplate = ({ doc }) => {
           <tr className="font-bold"><td colSpan="5" className="border border-black p-1 text-right uppercase">Tổng cộng:</td><td className="border border-black p-1 text-right">{total.toLocaleString()}đ</td></tr>
         </tbody>
       </table>
-      <p className="mt-2 italic font-bold text-[12px]">Bằng chữ: {docSoTiengViet(total)}</p>
-      <div className="mt-8 grid grid-cols-5 text-center text-[10px] uppercase font-bold gap-1 leading-normal italic">
-        <div><p>Người lập</p><div className="h-10"></div><p>{doc.signers?.lập || '.........'}</p></div>
-        <div><p>Người giao</p><div className="h-10"></div><p>{doc.signers?.giao || '.........'}</p></div>
-        <div><p>Người nhận</p><div className="h-10"></div><p>{doc.signers?.nhận || '.........'}</p></div>
-        <div><p>Trưởng ban</p><div className="h-10"></div><p>{doc.signers?.trưởng_ban || '.........'}</p></div>
-        <div><p>Chủ nhiệm</p><div className="h-10"></div><p>{doc.signers?.chủ_nhiệm || '.........'}</p></div>
+      <p className="mt-2 italic font-bold text-[12px]">Viết bằng chữ: {docSoTiengViet(total)}</p>
+      <div className="mt-8 grid grid-cols-5 text-center text-[10px] uppercase font-bold gap-1 leading-tight italic">
+        <div><p>Người lập phiếu</p><div className="h-10"></div><p className="underline">{doc.signers?.lập || '.........'}</p></div>
+        <div><p>Người giao hàng</p><div className="h-10"></div><p className="underline">{doc.signers?.giao || '.........'}</p></div>
+        <div><p>Người nhận hàng</p><div className="h-10"></div><p className="underline">{doc.signers?.nhận || '.........'}</p></div>
+        <div><p>Trưởng ban</p><div className="h-10"></div><p className="underline">{doc.signers?.trưởng_ban || '.........'}</p></div>
+        <div><p>Chủ nhiệm</p><div className="h-10"></div><p className="underline">Phạm Ngọc Hầu</p></div>
       </div>
     </div>
   );
